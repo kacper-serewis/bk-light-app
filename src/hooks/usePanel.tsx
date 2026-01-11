@@ -86,6 +86,7 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
     const [state, setState] = useState<"idle" | "scanning" | "connecting" | "connected" | "disconnected">("idle");
 
     const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isManualDisconnectRef = useRef<boolean>(false);
 
 
 
@@ -133,6 +134,7 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
 
     async function connect() {
         setState("scanning");
+        isManualDisconnectRef.current = false;
         if (!deviceAddress) {
             setState("idle");
             setError("No device address provided.");
@@ -152,7 +154,9 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
 
 
         await blec.connect(deviceAddress, () => {
-            setState("disconnected");
+            if (!isManualDisconnectRef.current) {
+                disconnect(true)
+            }
         }, false);
 
 
@@ -216,9 +220,17 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
         }
     }
 
-    async function disconnect() {
+    async function disconnect(reconnect: boolean = false) {
+        if(!reconnect) {
+            isManualDisconnectRef.current = true;
+        }
+        if(reconnect) {
+            setState("disconnected");
+        } else {
+            setState("idle");
+        }
         await blec.disconnect();
-        setState("idle");
+        
     }
 
 
