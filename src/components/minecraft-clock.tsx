@@ -46,6 +46,7 @@ import minecraftClockSpriteSheet from "@/assets/minecraft-clock.png";
 export default function MinecraftClock({onPng, disabled}: {onPng: (png: string) => void, disabled: boolean}) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [index, setIndex] = useState(0);
+    const [mode, setMode] = useState<"realtime" | "cycle">("realtime");
 
     function renderClock() {
         renderMinecraftClock(index).then((renderedCanvas) => {
@@ -68,30 +69,45 @@ export default function MinecraftClock({onPng, disabled}: {onPng: (png: string) 
 
 
     useEffect(() => {
-        const interval = setInterval(() => {
+        if (mode === "realtime") {
             const newIndex = getClockIndex(new Date());
-            if(newIndex !== index) {
-                setIndex(newIndex);
-            }
-            // setIndex(index => {
-            //     index++
-            //     if(index >= 64) index = 0;
-            //     return index;
-            // });
+            setIndex(newIndex);
             
+            const interval = setInterval(() => {
+                const newIndex = getClockIndex(new Date());
+                setIndex(newIndex);
+            }, 1000);
 
-        }, 1000)
+            return () => {
+                clearInterval(interval);
+            };
+        } else {
+            const interval = setInterval(() => {
+                setIndex(index => {
+                    index++;
+                    if(index >= 64) index = 0;
+                    return index;
+                });
+            }, 250);
 
-        return () => {
-            clearInterval(interval)
+            return () => {
+                clearInterval(interval);
+            };
         }
-    }, [])
+    }, [mode])
 
+    function toggleMode() {
+        setMode(mode === "realtime" ? "cycle" : "realtime");
+    }
 
-    return <section>
-  
-        <Text variant="h4">Minecraft Clock</Text>
-        <Text variant="muted">Index: {index}</Text>
-        <canvas ref={canvasRef} />
+    return <section className="flex flex-col gap-2">
+        <Text variant="large">Minecraft Clock</Text>
+        <Text variant="muted">Mode: {mode === "realtime" ? "Real Time" : "Cycle"} | Index: {index}</Text>
+        <canvas 
+            ref={canvasRef} 
+            className="w-[32px] h-[32px] cursor-pointer" 
+            onClick={toggleMode}
+            title="Click to toggle between real time and cycle mode"
+        />
     </section>
 }

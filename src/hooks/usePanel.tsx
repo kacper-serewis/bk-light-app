@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as blec from "@mnlphlp/plugin-blec"
 
 const UUID_WRITE = "0000fa02-0000-1000-8000-00805f9b34fb"
@@ -11,7 +11,7 @@ const ACK_STAGE_ONE = [0x0C, 0x00, 0x01, 0x80, 0x81, 0x06, 0x32, 0x00, 0x00, 0x0
 const ACK_STAGE_ONE_ALT = [0x0B, 0x00, 0x01, 0x80, 0x83, 0x06, 0x32, 0x00, 0x00, 0x01, 0x00];
 const ACK_STAGE_TWO = [0x08, 0x00, 0x05, 0x80, 0x0B, 0x03, 0x07, 0x02];
 const ACK_STAGE_TWO_ALT = [0x08, 0x00, 0x05, 0x80, 0x0E, 0x03, 0x07, 0x01];
-const ACK_STAGE_THREE = [0x05, 0x00, 0x02, 0x00, 0x03];
+
 
 function compare(a1: number[], a2: number[]): boolean {
     if (a1.length !== a2.length) return false;
@@ -27,6 +27,7 @@ function writeAndReadAck(data: number[], writeChar: string, notifyChar: string, 
         let timeoutId: NodeJS.Timeout | null = null;
 
         blec.subscribe(notifyChar, (data) => {
+            blec.unsubscribe(notifyChar);
             if (timeoutId) {
                 clearTimeout(timeoutId)
             }
@@ -35,8 +36,9 @@ function writeAndReadAck(data: number[], writeChar: string, notifyChar: string, 
 
         blec.send(writeChar, data, writeType).then(() => {
             timeoutId = setTimeout(() => {
+                blec.unsubscribe(notifyChar);
                 reject(new Error("Timeout"));
-            }, 5000);
+            }, 1000);
         })
     })
 
@@ -57,10 +59,33 @@ function crc32(data: Uint8Array): number {
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
 
+async function findDevice(deviceAddress: string) {
+    return new Promise((resolve, reject) => {
+        let timeoutId: NodeJS.Timeout | null = null;
+        blec.startScan((devices) => {
+            const device = devices.find(d => d.address === deviceAddress);
+            if(device) {
+                blec.stopScan();
+                if(timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                resolve(device)
+            } 
+        }, 8000, false);
+
+        timeoutId = setTimeout(() => {
+            blec.stopScan();
+            reject(new Error("Device not found"));
+        }, 8000);
+    })
+}
+
 
 export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
     const [error, setError] = useState<string | null>();
-    const [state, setState] = useState<"idle" | "connecting" | "connected" | "disconnected">("idle");
+    const [state, setState] = useState<"idle" | "scanning" | "connecting" | "connected" | "disconnected">("idle");
+
+    const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
 
@@ -98,9 +123,6 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
             frame.push(pngBytes[i]);
         }
 
-        // Print out like 0x00, 0x00
-        console.log("Frame: " + frame.map(b => b.toString(16).padStart(2, '0')).join('-'));
-
         await blec.send(UUID_WRITE, frame, "withResponse");
     }
 
@@ -110,10 +132,24 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
     }
 
     async function connect() {
+        setState("scanning");
         if (!deviceAddress) {
+            setState("idle");
             setError("No device address provided.");
             return
         }
+
+
+        try {
+            await findDevice(deviceAddress)
+        }catch(error) {
+            reconnect();
+            setState("idle");
+            setError("Device not found");
+            return;
+        }
+
+
 
         await blec.connect(deviceAddress, () => {
             setState("disconnected");
@@ -173,6 +209,7 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
                 }
             }
             setState("connected");
+            setError(null);
         } catch (error) {
             setState("idle")
             setError("Error connecting to device: " + error);
@@ -183,6 +220,25 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
         await blec.disconnect();
         setState("disconnected");
     }
+
+
+    function reconnect() {
+        console.log("Reconnecting, enqueued");
+        if(reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+        }
+        reconnectTimeoutRef.current = setTimeout(() => {
+            console.log("Reconnecting");
+            connect();
+        }, 2000)
+    }
+
+    useEffect(() => {
+        
+        if(state !== "disconnected") return;
+        reconnect();
+
+    }, [state])
 
 
     return {

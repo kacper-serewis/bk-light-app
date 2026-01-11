@@ -24,31 +24,31 @@ const textVariants = cva("", {
 });
 
 type VariantElementMap = {
-  h1: "h1";
-  h2: "h2";
-  h3: "h3";
-  h4: "h4";
-  p: "p";
-  blockquote: "blockquote";
+  h1: "span";
+  h2: "span";
+  h3: "span";
+  h4: "span";
+  p: "span";
+  blockquote: "span";
   code: "code";
-  lead: "p";
-  large: "div";
-  small: "small";
-  muted: "p";
+  lead: "span";
+  large: "span";
+  small: "span";
+  muted: "span";
 };
 
 const variantElementMap: VariantElementMap = {
-  h1: "h1",
-  h2: "h2",
-  h3: "h3",
-  h4: "h4",
-  p: "p",
-  blockquote: "blockquote",
+  h1: "span",
+  h2: "span",
+  h3: "span",
+  h4: "span",
+  p: "span",
+  blockquote: "span",
   code: "code",
-  lead: "p",
-  large: "div",
-  small: "small",
-  muted: "p",
+  lead: "span",
+  large: "span",
+  small: "span",
+  muted: "span",
 };
 
 export interface TextProps
@@ -76,4 +76,3 @@ const Text = React.forwardRef<HTMLElement, TextProps>(
 Text.displayName = "Text";
 
 export { Text, textVariants };
-
