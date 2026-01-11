@@ -218,7 +218,7 @@ export function usePanel({ deviceAddress }: { deviceAddress: string | null }) {
 
     async function disconnect() {
         await blec.disconnect();
-        setState("disconnected");
+        setState("idle");
     }
 
 
